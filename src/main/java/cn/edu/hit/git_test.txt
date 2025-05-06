@@ -1,2 +1,2 @@
-modified on branch B1
+modified on B2 branch
 
