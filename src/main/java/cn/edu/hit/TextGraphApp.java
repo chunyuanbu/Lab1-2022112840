@@ -1,24 +1,51 @@
 package cn.edu.hit;
 
-import java.io.*;
-import java.nio.file.*;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
 import guru.nidi.graphviz.attribute.Label;
-import guru.nidi.graphviz.engine.*;
-import guru.nidi.graphviz.model.*;
-
-
-import static guru.nidi.graphviz.model.Factory.*;
+import guru.nidi.graphviz.engine.Format;
 import guru.nidi.graphviz.engine.Graphviz;
 import guru.nidi.graphviz.engine.GraphvizCmdLineEngine;
 
+
+import static guru.nidi.graphviz.model.Factory.mutGraph;
+import static guru.nidi.graphviz.model.Factory.mutNode;
+import static guru.nidi.graphviz.model.Factory.to;
+import guru.nidi.graphviz.model.MutableGraph;
+import guru.nidi.graphviz.model.MutableNode;
+import org.apache.commons.io.FilenameUtils;
+
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+
+
 public class TextGraphApp {
+    /**
+     * 日志输出
+     */
+    private static final Logger LOGGER = Logger.getLogger(TextGraphApp.class.getName());
+    /**
+     * 安全RANDOM
+     */
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+
     //图节点
     public static class Node {
+
+        /**
+         * 当前节点所表示的单词。
+         */
         String word;
-        //存储有向边（Node为目标节点，Integer为边出现次数）
+
+        /**
+         * 当前节点的所有有向边，键为目标节点，值为该边出现的次数
+         */
         Map<Node, Integer> edges = new HashMap<>();
         //创建新节点对象
         Node(String word) {
@@ -32,7 +59,9 @@ public class TextGraphApp {
     }
     //构建有向图
     public static class DirectedGraph {
-        //映射表（单词与Node对象）
+        /**
+         * 所有单词与其对应节点的映射关系，用于快速查找图中的节点。
+         */
         Map<String, Node> nodes = new HashMap<>();
 
         //获取节点（不分大小写）
@@ -57,12 +86,14 @@ public class TextGraphApp {
                 //遍历当前节点的所有边
                 for (Map.Entry<Node, Integer> entry : node.edges.entrySet()) {
                     String line = node.word + " -> " + entry.getKey().word + " (weight: " + entry.getValue() + ")";
+                    //LOGGER.info(line);
                     System.out.println(line);
+
                     sb.append(line).append("\n");
                 }
             }
             try {
-                Files.write(Paths.get("graph_show.txt"), sb.toString().getBytes());
+                Files.write(Paths.get("graph_show.txt"), sb.toString().getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
                 System.err.println("Failed to write graph to file.");
             }
@@ -90,6 +121,7 @@ public class TextGraphApp {
             //导出图片文件
             try {
                 Graphviz.fromGraph(g).render(Format.PNG).toFile(new File(outputFilePath));
+                //LOGGER.info("Graph image exported to: " + outputFilePath);
                 System.out.println("Graph image exported to: " + outputFilePath);
             } catch (IOException e) {
                 System.err.println("Failed to export graph image: " + e.getMessage());
@@ -108,7 +140,16 @@ public class TextGraphApp {
 
     //读取文本文件内容，提取单词构建有向图
     static DirectedGraph buildGraphFromFile(String filename) throws IOException {
+// 确保文件名不包含非法路径元素（防止路径遍历）
+        String safeName = FilenameUtils.getName(filename);
+        if (!filename.endsWith(safeName)) {
+            throw new SecurityException("Illegal file path detected: " + filename);
+        }
+
+// 安全验证通过，继续使用原始路径读取文件
         String content = Files.readString(Paths.get(filename));
+
+
         List<String> words = cleanWords(content);
         DirectedGraph graph = new DirectedGraph();
         //遍历所有相邻单词对
@@ -122,16 +163,24 @@ public class TextGraphApp {
     static String queryBridgeWords(DirectedGraph graph, String word1, String word2) {
         Node n1 = graph.getNode(word1);
         Node n2 = graph.getNode(word2);
-        if (n1 == null && n2 == null) return "No " + word1 + " and " + word2 + " in the graph!";
-        if (n1 == null) return "No " + word1 + " in the graph!";
-        if (n2 == null) return "No " + word2 + " in the graph!";
+        if (n1 == null && n2 == null) {
+            return "No " + word1 + " and " + word2 + " in the graph!";
+        }
+        if (n1 == null) {
+            return "No " + word1 + " in the graph!";
+        }
+        if (n2 == null) {
+            return "No " + word2 + " in the graph!";
+        }
         List<String> bridges = new ArrayList<>();
         for (Node mid : n1.edges.keySet()) {
             if (mid.edges.containsKey(n2)) {
                 bridges.add(mid.word);
             }
         }
-        if (bridges.isEmpty()) return "No bridge words from " + word1 + " to " + word2 + "!";
+        if (bridges.isEmpty()) {
+            return "No bridge words from " + word1 + " to " + word2 + "!";
+        }
         return "The bridge words from " + word1 + " to " + word2 + " is/are: " + String.join(", ", bridges) + ".";
     }
 
@@ -139,7 +188,6 @@ public class TextGraphApp {
     static String generateNewText(DirectedGraph graph, String inputText) {
         List<String> words = cleanWords(inputText);
         List<String> result = new ArrayList<>();
-        Random random = new Random();
         for (int i = 0; i < words.size() - 1; i++) {
             result.add(words.get(i));
             Node from = graph.getNode(words.get(i));
@@ -152,7 +200,7 @@ public class TextGraphApp {
                     }
                 }
                 if (!bridges.isEmpty()) {
-                    result.add(bridges.get(random.nextInt(bridges.size())));
+                    result.add(bridges.get(SECURE_RANDOM.nextInt(bridges.size())));
                 }
             }
         }
@@ -163,8 +211,28 @@ public class TextGraphApp {
 
     //查询两词间最短路径
     static String calcShortestPath(DirectedGraph graph, String start, String end) {
-        Node source = graph.getNode(start);
-        if (source == null) return "Start word not in graph.";
+        Node source = null;
+        Node target = null;
+        if (start == null) {
+            return "Start word is NULL";
+        } else {
+            source = graph.getNode(start);
+        }
+
+        if (end != null) {
+            target = graph.getNode(end);
+        }
+
+
+        if (source == null) {
+            if (end == null) {
+                return "Start word is not in graph and end word is null.";
+            } else if (target == null) {
+                return "Start word and end word are not in graph.";
+            } else {
+                    return "Start word is not in graph.";
+            }
+        }
 
         // 单词到所有节点的最短路径
         if (end == null || end.isEmpty()) {
@@ -193,7 +261,9 @@ public class TextGraphApp {
 
             StringBuilder result = new StringBuilder("Shortest paths from \"" + start + "\":\n");
             for (Node node : graph.nodes.values()) {
-                if (node == source) continue;
+                if (node == source) {
+                    continue;
+                }
                 if (dist.get(node) == Integer.MAX_VALUE) {
                     result.append("No path to ").append(node.word).append(".\n");
                 } else {
@@ -211,8 +281,9 @@ public class TextGraphApp {
         }
 
         // 起点和终点都存在时，执行原有路径计算逻辑
-        Node target = graph.getNode(end);
-        if (target == null) return "End word not in graph.";
+        if (target == null) {
+            return "End word is not in graph.";
+        }
 
         Map<Node, Integer> dist = new HashMap<>();
         Map<Node, Node> prev = new HashMap<>();
@@ -253,9 +324,10 @@ public class TextGraphApp {
     //计算PageRank
     static Map<String, Double> calcPageRank(DirectedGraph graph, double d, double epsilon) {
         Map<String, Double> pr = new HashMap<>();
-        int N = graph.nodes.size();
+        int nodeCount = graph.nodes.size();
+        //int N = graph.nodes.size();
         for (String node : graph.nodes.keySet()) {
-            pr.put(node, 1.0 / N);
+            pr.put(node, 1.0 / nodeCount);
         }
 
         boolean converged = false;
@@ -269,7 +341,7 @@ public class TextGraphApp {
                     danglingPR += pr.get(node);
                 }
             }
-            double distributedDanglingPR = danglingPR / N;
+            double distributedDanglingPR = danglingPR / nodeCount;
 
             double maxDiff = 0;  // 最大变化量
             for (String u : graph.nodes.keySet()) {
@@ -279,7 +351,7 @@ public class TextGraphApp {
                         sum += pr.get(v.word) / v.edges.size();
                     }
                 }
-                double newVal = (1 - d) / N + d * (sum + distributedDanglingPR);
+                double newVal = (1 - d) / nodeCount + d * (sum + distributedDanglingPR);
                 newPr.put(u, newVal);
                 maxDiff = Math.max(maxDiff, Math.abs(newVal - pr.get(u)));
             }
@@ -295,17 +367,20 @@ public class TextGraphApp {
     static List<String> randomWalk(DirectedGraph graph, boolean stepByStep) {
         List<String> walk = new ArrayList<>();
         List<Node> nodeList = new ArrayList<>(graph.nodes.values());
-        Node current = nodeList.get(new Random().nextInt(nodeList.size())); //随机选择起点
+        Node current = nodeList.get(SECURE_RANDOM.nextInt(nodeList.size())); //随机选择起点
         Set<String> visitedEdges = new HashSet<>();
 
         walk.add(current.word);
-        Scanner scanner = new Scanner(System.in);
+        Scanner scanner = new Scanner(System.in, StandardCharsets.UTF_8.name());
+
 
         while (!current.edges.isEmpty()) {
             List<Node> neighbors = new ArrayList<>(current.edges.keySet());
-            Node next = neighbors.get(new Random().nextInt(neighbors.size()));  //每次随机选择一个邻居继续走
+            Node next = neighbors.get(SECURE_RANDOM.nextInt(neighbors.size()));  //每次随机选择一个邻居继续走
             String edgeKey = current.word + "->" + next.word;
-            if (visitedEdges.contains(edgeKey)) break;
+            if (visitedEdges.contains(edgeKey)) {
+                break;
+            }
             visitedEdges.add(edgeKey);
 
             current = next;
@@ -328,7 +403,7 @@ public class TextGraphApp {
 
         // 写入文件
         try {
-            Files.write(Paths.get("random_walk.txt"), String.join(" ", walk).getBytes());
+            Files.write(Paths.get("random_walk.txt"), String.join(" ", walk).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             System.err.println("Failed to write walk to file.");
         }
@@ -341,7 +416,7 @@ public class TextGraphApp {
     //主程序（功能询问+结果展示）
     public static void main(String[] args) throws IOException {
         Graphviz.useEngine(new GraphvizCmdLineEngine()); // 调用外部库绘图
-        Scanner scanner = new Scanner(System.in);
+        Scanner scanner = new Scanner(System.in, StandardCharsets.UTF_8.name());
         System.out.print("Enter the file path: ");
         String path = scanner.nextLine();
         DirectedGraph graph = buildGraphFromFile(path);
@@ -377,7 +452,7 @@ public class TextGraphApp {
                     String bridgeResult = queryBridgeWords(graph, w1, w2);
                     System.out.println(bridgeResult);
                     try {
-                        Files.write(Paths.get("bridge_words.txt"), bridgeResult.getBytes());
+                        Files.write(Paths.get("bridge_words.txt"), bridgeResult.getBytes(StandardCharsets.UTF_8));
                     } catch (IOException e) {
                         System.err.println("Failed to write bridge words to file.");
                     }
@@ -388,7 +463,7 @@ public class TextGraphApp {
                     System.out.println(generateNewText(graph, newText));
                     String generated = generateNewText(graph, newText);
                     try {
-                        Files.write(Paths.get("new_text.txt"), generated.getBytes());
+                        Files.write(Paths.get("new_text.txt"), generated.getBytes(StandardCharsets.UTF_8.name()));
                     } catch (IOException e) {
                         System.err.println("Failed to write new text to file.");
                     }
@@ -403,7 +478,7 @@ public class TextGraphApp {
                     System.out.println(pathResult);
 
                     try {
-                        Files.write(Paths.get("shortest_path.txt"), pathResult.getBytes());
+                        Files.write(Paths.get("shortest_path.txt"), pathResult.getBytes(StandardCharsets.UTF_8.name()));
                         System.out.println("Result written to shortest_path.txt.");
                     } catch (IOException e) {
                         System.err.println("Failed to write shortest path to file.");
@@ -418,7 +493,7 @@ public class TextGraphApp {
                         prContent.append(line).append("\n");
                     }
                     try {
-                        Files.write(Paths.get("pagerank.txt"), prContent.toString().getBytes());
+                        Files.write(Paths.get("pagerank.txt"), prContent.toString().getBytes(StandardCharsets.UTF_8.name()));
                     } catch (IOException e) {
                         System.err.println("Failed to write pagerank to file.");
                     }
