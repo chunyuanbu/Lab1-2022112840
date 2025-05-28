@@ -12,7 +12,7 @@ class TextGraphAppTest {
 
     @BeforeAll
     static void setup() throws IOException {
-        // 构建测试用图（请根据你项目的实际情况修改这部分）
+        // 构建测试用图
         graph = TextGraphApp.buildGraphFromFile("src/main/java/cn/edu/hit/Easy Test.txt");
     }
 

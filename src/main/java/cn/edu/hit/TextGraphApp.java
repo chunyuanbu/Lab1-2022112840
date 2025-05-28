@@ -163,13 +163,13 @@ public class TextGraphApp {
     static String queryBridgeWords(DirectedGraph graph, String word1, String word2) {
         Node n1 = graph.getNode(word1);
         Node n2 = graph.getNode(word2);
-        if (n1 == null && n2 == null) {
-            return "No " + word1 + " and " + word2 + " in the graph!";
-        }
         if (n1 == null) {
-            return "No " + word1 + " in the graph!";
-        }
-        if (n2 == null) {
+            if (n2 == null) {
+                return "No " + word1 + " and " + word2 + " in the graph!";
+            } else {
+                return "No " + word1 + " in the graph!";
+            }
+        } else if (n2 == null) {
             return "No " + word2 + " in the graph!";
         }
         List<String> bridges = new ArrayList<>();

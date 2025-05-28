@@ -1,1 +1,1 @@
-Start word and end word are not in graph.
+Shortest path: the -> data -> wrote -> a (length: 3)
