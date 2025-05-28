@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 
+//黑盒测试用例
 class TextGraphAppTest {
 
     static TextGraphApp.DirectedGraph graph;

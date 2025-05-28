@@ -9,6 +9,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+//白盒测试用例
 class QueryBridgeWordsTest {
 
     // 创建一个简单的图结构供测试使用
